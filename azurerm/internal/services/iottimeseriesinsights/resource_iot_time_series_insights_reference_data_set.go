@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/services/preview/timeseriesinsights/mgmt/2018-08-15-preview/timeseriesinsights"
+	"github.com/Azure/azure-sdk-for-go/services/timeseriesinsights/mgmt/2020-05-15/timeseriesinsights"
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/helper/validation"
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/helpers/azure"
@@ -27,7 +27,7 @@ func resourceArmIoTTimeSeriesInsightsReferenceDataSet() *schema.Resource {
 		Update: resourceArmIoTTimeSeriesInsightsReferenceDataSetCreateUpdate,
 		Delete: resourceArmIoTTimeSeriesInsightsReferenceDataSetDelete,
 		Importer: azSchema.ValidateResourceIDPriorToImport(func(id string) error {
-			_, err := parse.TimeSeriesInsightsReferenceDataSetID(id)
+			_, err := parse.ReferenceDataSetID(id)
 			return err
 		}),
 
@@ -104,7 +104,7 @@ func resourceArmIoTTimeSeriesInsightsReferenceDataSetCreateUpdate(d *schema.Reso
 
 	name := d.Get("name").(string)
 	environmentID := d.Get("time_series_insights_environment_id").(string)
-	id, err := parse.TimeSeriesInsightsEnvironmentID(environmentID)
+	id, err := parse.EnvironmentID(environmentID)
 	if err != nil {
 		return err
 	}
@@ -156,7 +156,7 @@ func resourceArmIoTTimeSeriesInsightsReferenceDataSetRead(d *schema.ResourceData
 	ctx, cancel := timeouts.ForRead(meta.(*clients.Client).StopContext, d)
 	defer cancel()
 
-	id, err := parse.TimeSeriesInsightsReferenceDataSetID(d.Id())
+	id, err := parse.ReferenceDataSetID(d.Id())
 	if err != nil {
 		return err
 	}
@@ -192,7 +192,7 @@ func resourceArmIoTTimeSeriesInsightsReferenceDataSetDelete(d *schema.ResourceDa
 	ctx, cancel := timeouts.ForDelete(meta.(*clients.Client).StopContext, d)
 	defer cancel()
 
-	id, err := parse.TimeSeriesInsightsReferenceDataSetID(d.Id())
+	id, err := parse.ReferenceDataSetID(d.Id())
 	if err != nil {
 		return err
 	}

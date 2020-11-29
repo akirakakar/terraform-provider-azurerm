@@ -14,7 +14,7 @@ import (
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/internal/location"
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/internal/services/managedapplications/parse"
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/internal/services/managedapplications/validate"
-	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/internal/services/resource"
+	resourcesParse "github.com/terraform-providers/terraform-provider-azurerm/azurerm/internal/services/resource/parse"
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/internal/tags"
 	azSchema "github.com/terraform-providers/terraform-provider-azurerm/azurerm/internal/tf/schema"
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/internal/timeouts"
@@ -29,7 +29,7 @@ func resourceManagedApplication() *schema.Resource {
 		Delete: resourceManagedApplicationDelete,
 
 		Importer: azSchema.ValidateResourceIDPriorToImport(func(id string) error {
-			_, err := parse.ManagedApplicationID(id)
+			_, err := parse.ApplicationID(id)
 			return err
 		}),
 
@@ -204,7 +204,7 @@ func resourceManagedApplicationRead(d *schema.ResourceData, meta interface{}) er
 	ctx, cancel := timeouts.ForRead(meta.(*clients.Client).StopContext, d)
 	defer cancel()
 
-	id, err := parse.ManagedApplicationID(d.Id())
+	id, err := parse.ApplicationID(d.Id())
 	if err != nil {
 		return err
 	}
@@ -227,7 +227,7 @@ func resourceManagedApplicationRead(d *schema.ResourceData, meta interface{}) er
 		return fmt.Errorf("setting `plan`: %+v", err)
 	}
 	if props := resp.ApplicationProperties; props != nil {
-		id, err := resource.ParseResourceGroupID(*props.ManagedResourceGroupID)
+		id, err := resourcesParse.ResourceGroupID(*props.ManagedResourceGroupID)
 		if err != nil {
 			return err
 		}
@@ -252,7 +252,7 @@ func resourceManagedApplicationDelete(d *schema.ResourceData, meta interface{}) 
 	ctx, cancel := timeouts.ForDelete(meta.(*clients.Client).StopContext, d)
 	defer cancel()
 
-	id, err := parse.ManagedApplicationID(d.Id())
+	id, err := parse.ApplicationID(d.Id())
 	if err != nil {
 		return err
 	}

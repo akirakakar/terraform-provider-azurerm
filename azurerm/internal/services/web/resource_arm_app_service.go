@@ -5,7 +5,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/services/web/mgmt/2019-08-01/web"
+	"github.com/Azure/azure-sdk-for-go/services/web/mgmt/2020-06-01/web"
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/helper/validation"
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/helpers/azure"
@@ -162,6 +162,11 @@ func resourceArmAppService() *schema.Resource {
 				},
 			},
 
+			"custom_domain_verification_id": {
+				Type:     schema.TypeString,
+				Computed: true,
+			},
+
 			"default_site_hostname": {
 				Type:     schema.TypeString,
 				Computed: true,
@@ -171,6 +176,7 @@ func resourceArmAppService() *schema.Resource {
 				Type:     schema.TypeString,
 				Computed: true,
 			},
+
 			"possible_outbound_ip_addresses": {
 				Type:     schema.TypeString,
 				Computed: true,
@@ -213,7 +219,10 @@ func resourceArmAppServiceCreate(d *schema.ResourceData, meta interface{}) error
 	}
 	// Check if App Service Plan is part of ASE
 	// If so, the name needs updating to <app name>.<ASE name>.appserviceenvironment.net and FQDN setting true for name availability check
-	aspDetails, _ := aspClient.Get(ctx, aspID.ResourceGroup, aspID.Name)
+	aspDetails, err := aspClient.Get(ctx, aspID.ResourceGroup, aspID.Name)
+	if err != nil {
+		return fmt.Errorf("App Service Environment %q (Resource Group %q) does not exist", aspID.Name, aspID.ResourceGroup)
+	}
 	if aspDetails.HostingEnvironmentProfile != nil {
 		availabilityRequest.Name = utils.String(fmt.Sprintf("%s.%s.appserviceenvironment.net", name, aspID.Name))
 		availabilityRequest.IsFqdn = utils.Bool(true)
@@ -303,7 +312,8 @@ func resourceArmAppServiceCreate(d *schema.ResourceData, meta interface{}) error
 
 	auth := web.SiteAuthSettings{
 		ID:                         read.ID,
-		SiteAuthSettingsProperties: &authSettings}
+		SiteAuthSettingsProperties: &authSettings,
+	}
 
 	if _, err := client.UpdateAuthSettings(ctx, resourceGroup, name, auth); err != nil {
 		return fmt.Errorf("Error updating auth settings for App Service %q (Resource Group %q): %+v", name, resourceGroup, err)
@@ -313,7 +323,8 @@ func resourceArmAppServiceCreate(d *schema.ResourceData, meta interface{}) error
 
 	logs := web.SiteLogsConfig{
 		ID:                       read.ID,
-		SiteLogsConfigProperties: &logsConfig}
+		SiteLogsConfigProperties: &logsConfig,
+	}
 
 	if _, err := client.UpdateDiagnosticLogsConfig(ctx, resourceGroup, name, logs); err != nil {
 		return fmt.Errorf("Error updating diagnostic logs config for App Service %q (Resource Group %q): %+v", name, resourceGroup, err)
@@ -530,7 +541,6 @@ func resourceArmAppServiceUpdate(d *schema.ResourceData, meta interface{}) error
 		site.Identity = appServiceIdentity
 
 		future, err := client.CreateOrUpdate(ctx, id.ResourceGroup, id.Name, site)
-
 		if err != nil {
 			return fmt.Errorf("Error updating Managed Service Identity for App Service %q: %+v", id.Name, err)
 		}
@@ -643,6 +653,7 @@ func resourceArmAppServiceRead(d *schema.ResourceData, meta interface{}) error {
 		d.Set("default_site_hostname", props.DefaultHostName)
 		d.Set("outbound_ip_addresses", props.OutboundIPAddresses)
 		d.Set("possible_outbound_ip_addresses", props.PossibleOutboundIPAddresses)
+		d.Set("custom_domain_verification_id", props.CustomDomainVerificationID)
 	}
 
 	appSettings := flattenAppServiceAppSettings(appSettingsResp.Properties)

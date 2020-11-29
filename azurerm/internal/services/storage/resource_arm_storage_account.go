@@ -25,8 +25,8 @@ import (
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/internal/tags"
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/internal/timeouts"
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/utils"
-	"github.com/tombuildsstuff/giovanni/storage/2018-11-09/blob/accounts"
-	"github.com/tombuildsstuff/giovanni/storage/2018-11-09/queue/queues"
+	"github.com/tombuildsstuff/giovanni/storage/2019-12-12/blob/accounts"
+	"github.com/tombuildsstuff/giovanni/storage/2019-12-12/queue/queues"
 )
 
 var storageAccountResourceName = "azurerm_storage_account"
@@ -388,6 +388,12 @@ func resourceArmStorageAccount() *schema.Resource {
 				},
 			},
 
+			"large_file_share_enabled": {
+				Type:     schema.TypeBool,
+				Optional: true,
+				Computed: true,
+			},
+
 			"primary_location": {
 				Type:     schema.TypeString,
 				Computed: true,
@@ -575,6 +581,13 @@ func resourceArmStorageAccount() *schema.Resource {
 				}
 			}
 
+			if d.HasChange("large_file_share_enabled") {
+				lfsEnabled, changedEnabled := d.GetChange("large_file_share_enabled")
+				if lfsEnabled.(bool) && !changedEnabled.(bool) {
+					return fmt.Errorf("`large_file_share_enabled` cannot be disabled once it's been enabled")
+				}
+			}
+
 			return nil
 		},
 	}
@@ -700,6 +713,14 @@ func resourceArmStorageAccountCreate(d *schema.ResourceData, meta interface{}) e
 		}
 	}
 
+	// nolint staticcheck
+	if v, ok := d.GetOkExists("large_file_share_enabled"); ok {
+		parameters.LargeFileSharesState = storage.LargeFileSharesStateDisabled
+		if v.(bool) {
+			parameters.LargeFileSharesState = storage.LargeFileSharesStateEnabled
+		}
+	}
+
 	// Create
 	future, err := client.Create(ctx, resourceGroupName, storageAccountName, parameters)
 	if err != nil {
@@ -757,8 +778,8 @@ func resourceArmStorageAccountCreate(d *schema.ResourceData, meta interface{}) e
 			return fmt.Errorf("Error expanding `queue_properties` for Azure Storage Account %q: %+v", storageAccountName, err)
 		}
 
-		if _, err = queueClient.SetServiceProperties(ctx, storageAccountName, queueProperties); err != nil {
-			return fmt.Errorf("Error updating Azure Storage Account `queue_properties` %q: %+v", storageAccountName, err)
+		if err = queueClient.UpdateServiceProperties(ctx, account.ResourceGroup, storageAccountName, queueProperties); err != nil {
+			return fmt.Errorf("updating Queue Properties for Storage Account %q: %+v", storageAccountName, err)
 		}
 	}
 
@@ -961,6 +982,22 @@ func resourceArmStorageAccountUpdate(d *schema.ResourceData, meta interface{}) e
 		}
 	}
 
+	if d.HasChange("large_file_share_enabled") {
+		isEnabled := storage.LargeFileSharesStateDisabled
+		if v := d.Get("large_file_share_enabled").(bool); v {
+			isEnabled = storage.LargeFileSharesStateEnabled
+		}
+		opts := storage.AccountUpdateParameters{
+			AccountPropertiesUpdateParameters: &storage.AccountPropertiesUpdateParameters{
+				LargeFileSharesState: isEnabled,
+			},
+		}
+
+		if _, err := client.Update(ctx, resourceGroupName, storageAccountName, opts); err != nil {
+			return fmt.Errorf("Error updating Azure Storage Account network_rules %q: %+v", storageAccountName, err)
+		}
+	}
+
 	if d.HasChange("blob_properties") {
 		// FileStorage does not support blob settings
 		if accountKind != string(storage.FileStorage) {
@@ -995,8 +1032,8 @@ func resourceArmStorageAccountUpdate(d *schema.ResourceData, meta interface{}) e
 			return fmt.Errorf("Error expanding `queue_properties` for Azure Storage Account %q: %+v", storageAccountName, err)
 		}
 
-		if _, err = queueClient.SetServiceProperties(ctx, storageAccountName, queueProperties); err != nil {
-			return fmt.Errorf("Error updating Azure Storage Account `queue_properties` %q: %+v", storageAccountName, err)
+		if err = queueClient.UpdateServiceProperties(ctx, account.ResourceGroup, storageAccountName, queueProperties); err != nil {
+			return fmt.Errorf("updating Queue Properties for Storage Account %q: %+v", storageAccountName, err)
 		}
 	}
 
@@ -1160,6 +1197,10 @@ func resourceArmStorageAccountRead(d *schema.ResourceData, meta interface{}) err
 		if err := d.Set("network_rules", flattenStorageAccountNetworkRules(props.NetworkRuleSet)); err != nil {
 			return fmt.Errorf("Error setting `network_rules`: %+v", err)
 		}
+
+		if props.LargeFileSharesState != "" {
+			d.Set("large_file_share_enabled", props.LargeFileSharesState == storage.LargeFileSharesStateEnabled)
+		}
 	}
 
 	if accessKeys := keys.Keys; accessKeys != nil {
@@ -1210,15 +1251,13 @@ func resourceArmStorageAccountRead(d *schema.ResourceData, meta interface{}) err
 				return fmt.Errorf("Error building Queues Client: %s", err)
 			}
 
-			queueProps, err := queueClient.GetServiceProperties(ctx, name)
+			queueProps, err := queueClient.GetServiceProperties(ctx, account.ResourceGroup, name)
 			if err != nil {
-				if queueProps.Response.Response != nil && !utils.ResponseWasNotFound(queueProps.Response) {
-					return fmt.Errorf("Error reading queue properties for AzureRM Storage Account %q: %+v", name, err)
-				}
+				return fmt.Errorf("Error reading queue properties for AzureRM Storage Account %q: %+v", name, err)
 			}
 
 			if err := d.Set("queue_properties", flattenQueueProperties(queueProps)); err != nil {
-				return fmt.Errorf("Error setting `queue_properties `for AzureRM Storage Account %q: %+v", name, err)
+				return fmt.Errorf("setting `queue_properties`: %+v", err)
 			}
 		}
 	}
@@ -1781,8 +1820,8 @@ func flattenBlobPropertiesDeleteRetentionPolicy(input *storage.DeleteRetentionPo
 	return deleteRetentionPolicy
 }
 
-func flattenQueueProperties(input queues.StorageServicePropertiesResponse) []interface{} {
-	if input.Response.Response == nil {
+func flattenQueueProperties(input *queues.StorageServiceProperties) []interface{} {
+	if input == nil {
 		return []interface{}{}
 	}
 

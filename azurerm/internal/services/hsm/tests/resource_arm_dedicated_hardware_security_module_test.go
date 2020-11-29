@@ -15,7 +15,7 @@ import (
 func TestAccAzureRMDedicatedHardwareSecurityModule_basic(t *testing.T) {
 	data := acceptance.BuildTestData(t, "azurerm_dedicated_hardware_security_module", "test")
 
-	resource.ParallelTest(t, resource.TestCase{
+	resource.Test(t, resource.TestCase{
 		PreCheck:     func() { acceptance.PreCheck(t) },
 		Providers:    acceptance.SupportedProviders,
 		CheckDestroy: testCheckAzureRMDedicatedHardwareSecurityModuleDestroy,
@@ -34,7 +34,7 @@ func TestAccAzureRMDedicatedHardwareSecurityModule_basic(t *testing.T) {
 func TestAccAzureRMDedicatedHardwareSecurityModule_requiresImport(t *testing.T) {
 	data := acceptance.BuildTestData(t, "azurerm_dedicated_hardware_security_module", "test")
 
-	resource.ParallelTest(t, resource.TestCase{
+	resource.Test(t, resource.TestCase{
 		PreCheck:     func() { acceptance.PreCheck(t) },
 		Providers:    acceptance.SupportedProviders,
 		CheckDestroy: testCheckAzureRMDedicatedHardwareSecurityModuleDestroy,
@@ -53,7 +53,7 @@ func TestAccAzureRMDedicatedHardwareSecurityModule_requiresImport(t *testing.T) 
 func TestAccAzureRMDedicatedHardwareSecurityModule_complete(t *testing.T) {
 	data := acceptance.BuildTestData(t, "azurerm_dedicated_hardware_security_module", "test")
 
-	resource.ParallelTest(t, resource.TestCase{
+	resource.Test(t, resource.TestCase{
 		PreCheck:     func() { acceptance.PreCheck(t) },
 		Providers:    acceptance.SupportedProviders,
 		CheckDestroy: testCheckAzureRMDedicatedHardwareSecurityModuleDestroy,
@@ -72,7 +72,7 @@ func TestAccAzureRMDedicatedHardwareSecurityModule_complete(t *testing.T) {
 func TestAccAzureRMDedicatedHardwareSecurityModule_update(t *testing.T) {
 	data := acceptance.BuildTestData(t, "azurerm_dedicated_hardware_security_module", "test")
 
-	resource.ParallelTest(t, resource.TestCase{
+	resource.Test(t, resource.TestCase{
 		PreCheck:     func() { acceptance.PreCheck(t) },
 		Providers:    acceptance.SupportedProviders,
 		CheckDestroy: testCheckAzureRMDedicatedHardwareSecurityModuleDestroy,
@@ -127,9 +127,9 @@ func testCheckAzureRMDedicatedHardwareSecurityModuleExists(resourceName string) 
 		if err != nil {
 			return err
 		}
-		if resp, err := client.Get(ctx, id.ResourceGroup, id.Name); err != nil {
+		if resp, err := client.Get(ctx, id.ResourceGroup, id.DedicatedHSMName); err != nil {
 			if !utils.ResponseWasNotFound(resp.Response) {
-				return fmt.Errorf("bad: Dedicated HardwareSecurityModule %q does not exist", id.Name)
+				return fmt.Errorf("bad: Dedicated HardwareSecurityModule %q does not exist", id.DedicatedHSMName)
 			}
 			return fmt.Errorf("bad: Get on HardwareSecurityModules.DedicatedHsmClient: %+v", err)
 		}
@@ -149,7 +149,7 @@ func testCheckAzureRMDedicatedHardwareSecurityModuleDestroy(s *terraform.State) 
 		if err != nil {
 			return err
 		}
-		if resp, err := client.Get(ctx, id.ResourceGroup, id.Name); err != nil {
+		if resp, err := client.Get(ctx, id.ResourceGroup, id.DedicatedHSMName); err != nil {
 			if !utils.ResponseWasNotFound(resp.Response) {
 				return fmt.Errorf("bad: Get on HardwareSecurityModules.DedicatedHsmClient: %+v", err)
 			}

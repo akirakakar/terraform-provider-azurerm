@@ -8,7 +8,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/terraform"
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/internal/acceptance"
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/internal/clients"
-	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/internal/services/storage/parsers"
+	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/internal/services/storage/parse"
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/utils"
 )
 
@@ -56,12 +56,12 @@ func testCheckAzureRMStorageSyncGroupExists(resourceName string) resource.TestCh
 		if !ok {
 			return fmt.Errorf("storage Sync Group not found: %s", resourceName)
 		}
-		id, err := parsers.StorageSyncGroupID(rs.Primary.ID)
+		id, err := parse.StorageSyncGroupID(rs.Primary.ID)
 		if err != nil {
 			return err
 		}
 
-		client := acceptance.AzureProvider.Meta().(*clients.Client).Storage.StoragesyncGroupClient
+		client := acceptance.AzureProvider.Meta().(*clients.Client).Storage.SyncGroupsClient
 		ctx := acceptance.AzureProvider.Meta().(*clients.Client).StopContext
 
 		if resp, err := client.Get(ctx, id.ResourceGroup, id.StorageSyncName, id.Name); err != nil {
@@ -76,7 +76,7 @@ func testCheckAzureRMStorageSyncGroupExists(resourceName string) resource.TestCh
 }
 
 func testCheckAzureRMStorageSyncGroupDestroy(s *terraform.State) error {
-	client := acceptance.AzureProvider.Meta().(*clients.Client).Storage.StoragesyncGroupClient
+	client := acceptance.AzureProvider.Meta().(*clients.Client).Storage.SyncGroupsClient
 	ctx := acceptance.AzureProvider.Meta().(*clients.Client).StopContext
 
 	for _, rs := range s.RootModule().Resources {
@@ -84,7 +84,7 @@ func testCheckAzureRMStorageSyncGroupDestroy(s *terraform.State) error {
 			continue
 		}
 
-		id, err := parsers.StorageSyncGroupID(rs.Primary.ID)
+		id, err := parse.StorageSyncGroupID(rs.Primary.ID)
 		if err != nil {
 			return err
 		}

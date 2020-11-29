@@ -3,14 +3,14 @@ package iottimeseriesinsights
 import (
 	"fmt"
 	"regexp"
-	"strings"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/services/preview/timeseriesinsights/mgmt/2018-08-15-preview/timeseriesinsights"
+	"github.com/Azure/azure-sdk-for-go/services/timeseriesinsights/mgmt/2020-05-15/timeseriesinsights"
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/helper/validation"
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/helpers/tf"
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/internal/clients"
+	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/internal/services/iottimeseriesinsights/migration"
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/internal/services/iottimeseriesinsights/parse"
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/internal/services/iottimeseriesinsights/validate"
 	azSchema "github.com/terraform-providers/terraform-provider-azurerm/azurerm/internal/tf/schema"
@@ -25,7 +25,7 @@ func resourceArmIoTTimeSeriesInsightsAccessPolicy() *schema.Resource {
 		Update: resourceArmIoTTimeSeriesInsightsAccessPolicyCreateUpdate,
 		Delete: resourceArmIoTTimeSeriesInsightsAccessPolicyDelete,
 		Importer: azSchema.ValidateResourceIDPriorToImport(func(id string) error {
-			_, err := parse.TimeSeriesInsightsAccessPolicyID(id)
+			_, err := parse.AccessPolicyID(id)
 			return err
 		}),
 
@@ -34,6 +34,11 @@ func resourceArmIoTTimeSeriesInsightsAccessPolicy() *schema.Resource {
 			Read:   schema.DefaultTimeout(5 * time.Minute),
 			Update: schema.DefaultTimeout(30 * time.Minute),
 			Delete: schema.DefaultTimeout(30 * time.Minute),
+		},
+
+		SchemaVersion: 1,
+		StateUpgraders: []schema.StateUpgrader{
+			migration.TimeSeriesInsightsAccessPolicyV0(),
 		},
 
 		Schema: map[string]*schema.Schema{
@@ -84,26 +89,27 @@ func resourceArmIoTTimeSeriesInsightsAccessPolicy() *schema.Resource {
 
 func resourceArmIoTTimeSeriesInsightsAccessPolicyCreateUpdate(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*clients.Client).IoTTimeSeriesInsights.AccessPoliciesClient
+	subscriptionId := meta.(*clients.Client).Account.SubscriptionId
 	ctx, cancel := timeouts.ForCreateUpdate(meta.(*clients.Client).StopContext, d)
 	defer cancel()
 
 	name := d.Get("name").(string)
-	environmentID := d.Get("time_series_insights_environment_id").(string)
-	id, err := parse.TimeSeriesInsightsEnvironmentID(environmentID)
+	environmentId, err := parse.EnvironmentID(d.Get("time_series_insights_environment_id").(string))
 	if err != nil {
 		return err
 	}
 
+	resourceId := parse.NewAccessPolicyID(subscriptionId, environmentId.ResourceGroup, environmentId.Name, name).ID("")
 	if d.IsNewResource() {
-		existing, err := client.Get(ctx, id.ResourceGroup, id.Name, name)
+		existing, err := client.Get(ctx, environmentId.ResourceGroup, environmentId.Name, name)
 		if err != nil {
 			if !utils.ResponseWasNotFound(existing.Response) {
-				return fmt.Errorf("checking for presence of existing IoT Time Series Insights Access Policy %q (Resource Group %q): %s", name, id.ResourceGroup, err)
+				return fmt.Errorf("checking for presence of existing IoT Time Series Insights Access Policy %q (Resource Group %q): %s", name, environmentId.ResourceGroup, err)
 			}
 		}
 
 		if existing.ID != nil && *existing.ID != "" {
-			return tf.ImportAsExistsError("azurerm_iot_time_series_insights_access_policy", *existing.ID)
+			return tf.ImportAsExistsError("azurerm_iot_time_series_insights_access_policy", resourceId)
 		}
 	}
 
@@ -115,21 +121,11 @@ func resourceArmIoTTimeSeriesInsightsAccessPolicyCreateUpdate(d *schema.Resource
 		},
 	}
 
-	if _, err := client.CreateOrUpdate(ctx, id.ResourceGroup, id.Name, name, policy); err != nil {
-		return fmt.Errorf("creating/updating IoT Time Series Insights Access Policy %q (Resource Group %q): %+v", name, id.ResourceGroup, err)
+	if _, err := client.CreateOrUpdate(ctx, environmentId.ResourceGroup, environmentId.Name, name, policy); err != nil {
+		return fmt.Errorf("creating/updating IoT Time Series Insights Access Policy %q (Resource Group %q): %+v", name, environmentId.ResourceGroup, err)
 	}
 
-	resp, err := client.Get(ctx, id.ResourceGroup, id.Name, name)
-	if err != nil {
-		return fmt.Errorf("retrieving IoT Time Series Insights Access Policy %q (Resource Group %q): %+v", name, id.ResourceGroup, err)
-	}
-
-	if resp.ID == nil || *resp.ID == "" {
-		return fmt.Errorf("cannot read IoT Time Series Insights Access Policy %q (Resource Group %q) ID", name, id.ResourceGroup)
-	}
-
-	d.SetId(*resp.ID)
-
+	d.SetId(resourceId)
 	return resourceArmIoTTimeSeriesInsightsAccessPolicyRead(d, meta)
 }
 
@@ -138,7 +134,7 @@ func resourceArmIoTTimeSeriesInsightsAccessPolicyRead(d *schema.ResourceData, me
 	ctx, cancel := timeouts.ForRead(meta.(*clients.Client).StopContext, d)
 	defer cancel()
 
-	id, err := parse.TimeSeriesInsightsAccessPolicyID(d.Id())
+	id, err := parse.AccessPolicyID(d.Id())
 	if err != nil {
 		return err
 	}
@@ -153,8 +149,10 @@ func resourceArmIoTTimeSeriesInsightsAccessPolicyRead(d *schema.ResourceData, me
 		return fmt.Errorf("retrieving IoT Time Series Insights Access Policy %q (Resource Group %q): %+v", id.Name, id.ResourceGroup, err)
 	}
 
+	environmentId := parse.NewEnvironmentID(id.SubscriptionId, id.ResourceGroup, id.EnvironmentName).ID("")
+
 	d.Set("name", resp.Name)
-	d.Set("time_series_insights_environment_id", strings.Split(d.Id(), "/accesspolicies")[0])
+	d.Set("time_series_insights_environment_id", environmentId)
 
 	if props := resp.AccessPolicyResourceProperties; props != nil {
 		d.Set("description", props.Description)
@@ -170,7 +168,7 @@ func resourceArmIoTTimeSeriesInsightsAccessPolicyDelete(d *schema.ResourceData, 
 	ctx, cancel := timeouts.ForDelete(meta.(*clients.Client).StopContext, d)
 	defer cancel()
 
-	id, err := parse.TimeSeriesInsightsAccessPolicyID(d.Id())
+	id, err := parse.AccessPolicyID(d.Id())
 	if err != nil {
 		return err
 	}

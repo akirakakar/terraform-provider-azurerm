@@ -62,16 +62,6 @@ func resourceArmDedicatedHardwareSecurityModule() *schema.Resource {
 				}, false),
 			},
 
-			"stamp_id": {
-				Type:     schema.TypeString,
-				Required: true,
-				ForceNew: true,
-				ValidateFunc: validation.StringInSlice([]string{
-					"stamp1",
-					"stamp2",
-				}, false),
-			},
-
 			"network_profile": {
 				Type:     schema.TypeList,
 				Required: true,
@@ -96,6 +86,16 @@ func resourceArmDedicatedHardwareSecurityModule() *schema.Resource {
 						},
 					},
 				},
+			},
+
+			"stamp_id": {
+				Type:     schema.TypeString,
+				Optional: true,
+				ForceNew: true,
+				ValidateFunc: validation.StringInSlice([]string{
+					"stamp1",
+					"stamp2",
+				}, false),
 			},
 
 			"zones": azure.SchemaZones(),
@@ -127,13 +127,19 @@ func resourceArmDedicatedHardwareSecurityModuleCreate(d *schema.ResourceData, me
 		Location: utils.String(location.Normalize(d.Get("location").(string))),
 		DedicatedHsmProperties: &hardwaresecuritymodules.DedicatedHsmProperties{
 			NetworkProfile: expandArmDedicatedHsmNetworkProfile(d.Get("network_profile").([]interface{})),
-			StampID:        utils.String(d.Get("stamp_id").(string)),
 		},
 		Sku: &hardwaresecuritymodules.Sku{
 			Name: hardwaresecuritymodules.Name(d.Get("sku_name").(string)),
 		},
-		Zones: azure.ExpandZones(d.Get("zones").([]interface{})),
-		Tags:  tags.Expand(d.Get("tags").(map[string]interface{})),
+		Tags: tags.Expand(d.Get("tags").(map[string]interface{})),
+	}
+
+	if v, ok := d.GetOk("stamp_id"); ok {
+		parameters.DedicatedHsmProperties.StampID = utils.String(v.(string))
+	}
+
+	if v, ok := d.GetOk("zones"); ok {
+		parameters.Zones = azure.ExpandZones(v.([]interface{}))
 	}
 
 	future, err := client.CreateOrUpdate(ctx, resourceGroup, name, parameters)
@@ -168,7 +174,7 @@ func resourceArmDedicatedHardwareSecurityModuleRead(d *schema.ResourceData, meta
 		return err
 	}
 
-	resp, err := client.Get(ctx, id.ResourceGroup, id.Name)
+	resp, err := client.Get(ctx, id.ResourceGroup, id.DedicatedHSMName)
 	if err != nil {
 		if utils.ResponseWasNotFound(resp.Response) {
 			log.Printf("[INFO] Dedicated Hardware Security Module %q does not exist - removing from state", d.Id())
@@ -176,10 +182,10 @@ func resourceArmDedicatedHardwareSecurityModuleRead(d *schema.ResourceData, meta
 			return nil
 		}
 
-		return fmt.Errorf("retrieving Dedicate Hardware Security Module %q (Resource Group %q): %+v", id.Name, id.ResourceGroup, err)
+		return fmt.Errorf("retrieving Dedicate Hardware Security Module %q (Resource Group %q): %+v", id.DedicatedHSMName, id.ResourceGroup, err)
 	}
 
-	d.Set("name", id.Name)
+	d.Set("name", id.DedicatedHSMName)
 	d.Set("resource_group_name", id.ResourceGroup)
 	d.Set("location", location.NormalizeNilable(resp.Location))
 
@@ -216,13 +222,13 @@ func resourceArmDedicatedHardwareSecurityModuleUpdate(d *schema.ResourceData, me
 		parameters.Tags = tags.Expand(d.Get("tags").(map[string]interface{}))
 	}
 
-	future, err := client.Update(ctx, id.ResourceGroup, id.Name, parameters)
+	future, err := client.Update(ctx, id.ResourceGroup, id.DedicatedHSMName, parameters)
 	if err != nil {
-		return fmt.Errorf("updating Dedicate Hardware Security Module %q (Resource Group %q): %+v", id.Name, id.ResourceGroup, err)
+		return fmt.Errorf("updating Dedicate Hardware Security Module %q (Resource Group %q): %+v", id.DedicatedHSMName, id.ResourceGroup, err)
 	}
 
 	if err = future.WaitForCompletionRef(ctx, client.Client); err != nil {
-		return fmt.Errorf("waiting on updating future for Dedicate Hardware Security Module %q (Resource Group %q): %+v", id.Name, id.ResourceGroup, err)
+		return fmt.Errorf("waiting on updating future for Dedicate Hardware Security Module %q (Resource Group %q): %+v", id.DedicatedHSMName, id.ResourceGroup, err)
 	}
 
 	return resourceArmDedicatedHardwareSecurityModuleRead(d, meta)
@@ -238,13 +244,13 @@ func resourceArmDedicatedHardwareSecurityModuleDelete(d *schema.ResourceData, me
 		return err
 	}
 
-	future, err := client.Delete(ctx, id.ResourceGroup, id.Name)
+	future, err := client.Delete(ctx, id.ResourceGroup, id.DedicatedHSMName)
 	if err != nil {
-		return fmt.Errorf("deleting Dedicated Hardware Security Module %q (Resource Group %q): %+v", id.Name, id.ResourceGroup, err)
+		return fmt.Errorf("deleting Dedicated Hardware Security Module %q (Resource Group %q): %+v", id.DedicatedHSMName, id.ResourceGroup, err)
 	}
 
 	if err = future.WaitForCompletionRef(ctx, client.Client); err != nil {
-		return fmt.Errorf("waiting on deleting future for Dedicated Hardware Security Module %q (Resource Group %q): %+v", id.Name, id.ResourceGroup, err)
+		return fmt.Errorf("waiting on deleting future for Dedicated Hardware Security Module %q (Resource Group %q): %+v", id.DedicatedHSMName, id.ResourceGroup, err)
 	}
 
 	return nil

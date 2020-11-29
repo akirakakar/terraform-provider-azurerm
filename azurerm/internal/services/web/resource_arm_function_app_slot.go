@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/services/web/mgmt/2019-08-01/web"
+	"github.com/Azure/azure-sdk-for-go/services/web/mgmt/2020-06-01/web"
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/helper/validation"
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/helpers/azure"
@@ -91,6 +91,7 @@ func resourceArmFunctionAppSlot() *schema.Resource {
 			"app_settings": {
 				Type:     schema.TypeMap,
 				Optional: true,
+				Computed: true,
 				Elem: &schema.Schema{
 					Type: schema.TypeString,
 				},
@@ -317,7 +318,8 @@ func resourceArmFunctionAppSlotCreate(d *schema.ResourceData, meta interface{}) 
 
 	auth := web.SiteAuthSettings{
 		ID:                         read.ID,
-		SiteAuthSettingsProperties: &authSettings}
+		SiteAuthSettingsProperties: &authSettings,
+	}
 
 	if _, err := client.UpdateAuthSettingsSlot(ctx, resourceGroup, functionAppName, auth, slot); err != nil {
 		return fmt.Errorf("Error updating auth settings for Slot %q (Function App Slot %q / Resource Group %q): %+s", slot, functionAppName, resourceGroup, err)
